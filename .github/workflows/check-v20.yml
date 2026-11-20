@@ -1,22 +1,55 @@
-name: Honor V20 Kernel Check
+
+name: Mate20 KernelSU Experimental Build
 
 on:
   workflow_dispatch:
 
 jobs:
-  check:
-    runs-on: ubuntu-22.04
+  build:
+    runs-on: ubuntu-20.04
     steps:
-      - name: Checkout source
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check repository
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential curl flex git libssl-dev libncurses5-dev libncursesw5-dev python2.7 unzip
+
+      - name: Download NDK r14b
+        run: |
+          curl -L --retry 3 -o ndk.zip https://dl.google.com/android/repository/android-ndk-r14b-linux-x86_64.zip
+          unzip -q ndk.zip
+          echo "$GITHUB_WORKSPACE/android-ndk-r14b/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin" >> "$GITHUB_PATH"
+
+      - name: Clone kernel source
         run: |
           git clone --depth=1 -b KernelSU https://github.com/Coconutat/android_kernel_huawei_kirin980.git kernel
           cd kernel
-          echo "Kernel version:"
-          head -n 5 Makefile
-          echo "Available V20 configs:"
-          find arch/arm64/configs -iname '*v20*' -o -iname '*pct*'
-          echo "KernelSU files:"
-          find . -iname '*kernelsu*' | head -30
+          grep -q '^VERSION = 4$' Makefile
+          grep -q '^PATCHLEVEL = 9$' Makefile
+          grep -q '^SUBLEVEL = 148$' Makefile
+          test -f arch/arm64/configs/Mate20_kirin980_mod_defconfig
+
+      - name: Configure and compile
+        run: |
+          cd kernel
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-android-
+          make O=out Mate20_kirin980_mod_defconfig
+          make O=out -j2 Image.gz
+
+      - name: Collect output
+        if: always()
+        run: |
+          mkdir -p build-output
+          test ! -f kernel/out/arch/arm64/boot/Image.gz || cp kernel/out/arch/arm64/boot/Image.gz build-output/
+          test ! -f kernel/out/.config || cp kernel/out/.config build-output/mate20-config.txt
+
+      - name: Upload kernel
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mate20-KernelSU-4.9.148-experimental
+          path: build-output/
+          if-no-files-found: warn
