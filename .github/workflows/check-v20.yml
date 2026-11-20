@@ -1,0 +1,22 @@
+name: Honor V20 Kernel Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Check repository
+        run: |
+          git clone --depth=1 -b KernelSU https://github.com/Coconutat/android_kernel_huawei_kirin980.git kernel
+          cd kernel
+          echo "Kernel version:"
+          head -n 5 Makefile
+          echo "Available V20 configs:"
+          find arch/arm64/configs -iname '*v20*' -o -iname '*pct*'
+          echo "KernelSU files:"
+          find . -iname '*kernelsu*' | head -30
